@@ -1,5 +1,7 @@
 'use client';
 
+import { Suspense } from 'react';
+
 import { useEffect, useState, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { CheckSquare, XSquare, Pencil, Sparkles, Filter, Loader2, BookOpen, RefreshCw } from 'lucide-react';
@@ -133,7 +135,7 @@ function QuestionCard({ q, onApprove, onReject, onEdit }: {
   );
 }
 
-export default function QuestionsPage() {
+function QuestionsInner() {
   const sp     = useSearchParams();
   const router = useRouter();
 
@@ -270,5 +272,17 @@ export default function QuestionsPage() {
       )}
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
+  );
+}
+
+export default function QuestionsPage() {
+  return (
+    <Suspense fallback={
+      <div style={{ padding: 60, textAlign: 'center', color: 'var(--text-muted)' }}>
+        Loading questions…
+      </div>
+    }>
+      <QuestionsInner />
+    </Suspense>
   );
 }
