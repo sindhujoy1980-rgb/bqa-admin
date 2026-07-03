@@ -143,11 +143,20 @@ export async function generateDailyQuestions(apiKey?: string): Promise<Generated
       console.error(`[Gemini] Attempt ${attempt} error:`, msg.slice(0, 200));
       lastRawResponse = msg;
 
-      // Parse retry-after seconds from the 429 error message
+      // If quota is zero (limit: 0), retrying will never help — fail immediately
+      if (msg.includes('limit: 0') || msg.includes('"limit":0')) {
+        throw new Error(
+          'Your Gemini API project has no quota allocated (limit: 0). ' +
+          'Please create a new API key from an existing project in Google AI Studio, ' +
+          'or enable billing on your current project. ' +
+          'Visit: https://aistudio.google.com/app/apikey'
+        );
+      }
+
+      // Parse retry-after seconds from the 429 error message, cap at 15s
       const retryMatch = msg.match(/retry in ([\d.]+)s/i);
-      const waitMs = retryMatch
-        ? Math.ceil(parseFloat(retryMatch[1])) * 1000 + 2000  // add 2s buffer
-        : 5000 * attempt; // fallback: 5s, 10s, 15s
+      const suggestedWait = retryMatch ? Math.ceil(parseFloat(retryMatch[1])) * 1000 : 5000 * attempt;
+      const waitMs = Math.min(suggestedWait, 15000); // max 15s wait
 
       console.log(`[Gemini] Waiting ${Math.round(waitMs / 1000)}s before retry...`);
       await new Promise(r => setTimeout(r, waitMs));
