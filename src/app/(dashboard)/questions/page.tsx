@@ -13,9 +13,16 @@ import { format } from 'date-fns';
 import type { BqaQuestion } from '@/lib/supabase';
 
 const CATEGORY_LABELS: Record<string, string> = {
-  OT: 'Old Testament', 'NT-Gospel': 'Gospel', 'NT-Other': 'NT Other',
+  'First Reading':  'First Reading',
+  'Second Reading': 'Second Reading',
+  'Gospel':         'Gospel',
+  // Legacy support
+  OT: 'First Reading', 'NT-Gospel': 'Gospel', 'NT-Other': 'Second Reading',
 };
-const SLOT_LABELS: Record<number, string> = { 1: 'OT', 2: 'Gospel', 3: 'NT Other' };
+const CATEGORY_BADGE: Record<string, string> = {
+  'First Reading': 'badge-first', 'Second Reading': 'badge-second', 'Gospel': 'badge-gospel',
+  OT: 'badge-first', 'NT-Gospel': 'badge-gospel', 'NT-Other': 'badge-second',
+};
 
 function QuestionCard({ q, onApprove, onReject, onEdit }: {
   q: BqaQuestion;
@@ -35,8 +42,8 @@ function QuestionCard({ q, onApprove, onReject, onEdit }: {
     <div className="glass-card fade-up" style={{ padding: 22 }}>
       {/* Header row */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-        <span className={`badge badge-${q.category === 'OT' ? 'ot' : q.category === 'NT-Gospel' ? 'gospel' : 'nt'}`}>
-          Slot {q.slot} · {CATEGORY_LABELS[q.category]}
+        <span className={`badge ${CATEGORY_BADGE[q.category] || 'badge-gospel'}`}>
+          Slot {q.slot} · {CATEGORY_LABELS[q.category] || q.category}
         </span>
         <span className={`badge badge-${q.status}`}>
           {q.status === 'pending' ? '⏳ Pending' : q.status === 'approved' ? '✅ Approved' : '✕ Rejected'}
@@ -183,7 +190,7 @@ function QuestionsInner() {
       body: JSON.stringify({ date }),
     });
     const data = await res.json();
-    if (res.ok) { toast.success('3 questions generated!', { id: t }); fetchQuestions(); }
+    if (res.ok) { toast.success('✅ Questions generated based on today\'s Mass readings!', { id: t }); fetchQuestions(); }
     else        { toast.error(data.error || 'Generation failed', { id: t }); }
     setGenerating(false);
   };
@@ -200,7 +207,7 @@ function QuestionsInner() {
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 28, flexWrap: 'wrap', gap: 16 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>Question Review</h1>
-          <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Review, approve, or reject AI-generated Bible quiz questions</p>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Review questions based on today&apos;s Catholic daily Mass readings</p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button onClick={fetchQuestions} className="btn-ghost" style={{ fontSize: 13 }}>
@@ -220,10 +227,10 @@ function QuestionsInner() {
           className="glass-input" style={{ padding: '7px 12px', fontSize: 13, width: 160 }} />
         <select value={catFilter} onChange={e => setCatFilter(e.target.value)}
           className="glass-input" style={{ padding: '7px 12px', fontSize: 13 }}>
-          <option value="">All Categories</option>
-          <option value="OT">Old Testament</option>
-          <option value="NT-Gospel">Gospel</option>
-          <option value="NT-Other">NT Other</option>
+          <option value="">All Readings</option>
+          <option value="First Reading">📖 First Reading</option>
+          <option value="Second Reading">📜 Second Reading</option>
+          <option value="Gospel">✝️ Gospel</option>
         </select>
         {(dateFilter || catFilter) && (
           <button className="btn-ghost" onClick={() => { setDateFilter(''); setCatFilter(''); }} style={{ fontSize: 12 }}>

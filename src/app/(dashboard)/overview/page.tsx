@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Users, BookOpen, CheckSquare, BarChart3, Sparkles, Calendar, Trophy, Loader2, RefreshCw, AlertCircle } from 'lucide-react';
+import { Users, BookOpen, CheckSquare, BarChart3, Sparkles, Calendar, Trophy, Loader2, RefreshCw, Cross } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 
@@ -37,10 +37,14 @@ function StatCard({ icon: Icon, label, value, sub, color }: {
   );
 }
 
+type Reading = { liturgical_day: string; first_reading: string; second_reading: string; gospel: string; gospel_theme: string };
+
 export default function OverviewPage() {
   const [stats, setStats]         = useState<Stats | null>(null);
   const [loading, setLoading]     = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [readings, setReadings]   = useState<Reading | null>(null);
+  const [readingsLoading, setReadingsLoading] = useState(true);
   const today = new Date().toISOString().split('T')[0];
 
   async function fetchStats() {
@@ -51,11 +55,21 @@ export default function OverviewPage() {
     setLoading(false);
   }
 
-  useEffect(() => { fetchStats(); }, []);
+  async function fetchReadings() {
+    setReadingsLoading(true);
+    try {
+      const res = await fetch('/api/readings');
+      const data = await res.json();
+      if (data.readings) setReadings(data.readings);
+    } catch {}
+    setReadingsLoading(false);
+  }
+
+  useEffect(() => { fetchStats(); fetchReadings(); }, []);
 
   async function handleGenerate() {
     setGenerating(true);
-    const t = toast.loading('Generating questions with Gemini AI…');
+    const t = toast.loading('Generating questions from today\'s Mass readings…');
     try {
       const res = await fetch('/api/generate', {
         method: 'POST',
@@ -66,7 +80,7 @@ export default function OverviewPage() {
       if (!res.ok) {
         toast.error(data.error || 'Generation failed', { id: t });
       } else {
-        toast.success('✅ 3 questions generated for today!', { id: t });
+        toast.success('✅ Questions generated from today\'s Mass readings!', { id: t });
         fetchStats();
       }
     } catch {
@@ -101,6 +115,53 @@ export default function OverviewPage() {
             {generating ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Sparkles size={15} />}
             Generate Today&apos;s Questions
           </button>
+        </div>
+      </div>
+
+      {/* Today's Readings Card */}
+      <div className="glass-card fade-up" style={{ marginBottom: 28 }}>
+        <div className="card-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <BookOpen size={16} style={{ color: 'var(--primary-light)' }} />
+            <span style={{ fontWeight: 700, fontSize: 14 }}>Today’s Catholic Daily Mass Readings</span>
+            {readings?.liturgical_day && (
+              <span style={{ fontSize: 11, color: 'var(--amber)', fontWeight: 600, padding: '2px 8px',
+                background: 'rgba(245,158,11,0.10)', borderRadius: 99, border: '1px solid rgba(245,158,11,0.18)' }}>
+                ✝️ {readings.liturgical_day}
+              </span>
+            )}
+          </div>
+          <button onClick={fetchReadings} className="btn-ghost" style={{ fontSize: 12, padding: '5px 10px' }}>
+            <RefreshCw size={12} style={{ animation: readingsLoading ? 'spin 1s linear infinite' : 'none' }} />
+            Refresh
+          </button>
+        </div>
+        <div style={{ padding: '16px 20px' }}>
+          {readingsLoading ? (
+            <div style={{ textAlign: 'center', padding: 20, color: 'var(--text-muted)' }}>
+              <Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} />
+            </div>
+          ) : readings ? (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+              <div className="reading-section first">
+                <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', color: '#f59e0b', marginBottom: 4 }}>First Reading</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{readings.first_reading}</div>
+              </div>
+              <div className="reading-section psalm">
+                <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', color: '#10b981', marginBottom: 4 }}>Responsorial Psalm</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{readings.second_reading}</div>
+              </div>
+              <div className="reading-section gospel">
+                <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', color: '#60a5fa', marginBottom: 4 }}>Gospel</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{readings.gospel}</div>
+                {readings.gospel_theme && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{readings.gospel_theme}</div>}
+              </div>
+            </div>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '16px 0', color: 'var(--text-muted)', fontSize: 13 }}>
+              Could not load today’s readings. Click Refresh to try again.
+            </div>
+          )}
         </div>
       </div>
 
