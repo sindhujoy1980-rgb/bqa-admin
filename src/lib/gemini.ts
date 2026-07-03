@@ -85,7 +85,7 @@ export async function generateDailyQuestions(apiKey?: string): Promise<Generated
   if (!key) throw new Error('No Gemini API key available. Please set it in Settings.');
 
   const genAI = new GoogleGenerativeAI(key);
-  const modelName = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+  const modelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
   const model = genAI.getGenerativeModel({ model: modelName });
 
   const recentTopics = await getRecentTopics(90);
