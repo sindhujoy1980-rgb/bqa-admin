@@ -1,10 +1,20 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight, Sparkles, CheckCircle2, Clock, Send, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Sparkles, CheckCircle2, Clock, Send, Loader2, BookOpen } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, getDay, addMonths, subMonths } from 'date-fns';
 import type { BqaQuestion } from '@/lib/supabase';
+
+type DailyReading = {
+  liturgical_day: string;
+  first_reading_ref: string;
+  first_reading_text: string;
+  gospel_ref: string;
+  gospel_text: string;
+  reflection_hi: string;
+  reflection_en: string;
+};
 
 type Quiz = {
   quiz_date: string; published: boolean; published_at: string | null;
@@ -32,6 +42,7 @@ export default function SchedulePage() {
   const [loading, setLoading]           = useState(false);
   const [publishing, setPublishing]     = useState(false);
   const [generating, setGenerating]     = useState(false);
+  const [dayReadings, setDayReadings]   = useState<DailyReading | null>(null);
 
   const monthStr = format(currentMonth, 'yyyy-MM');
 
@@ -45,9 +56,15 @@ export default function SchedulePage() {
   const fetchDayQuestions = async (date: string) => {
     setLoading(true);
     setSelectedDate(date);
-    const res  = await fetch(`/api/questions?date=${date}`);
-    const data = await res.json();
-    setDateQuestions(data.data || []);
+    setDayReadings(null);
+    const [qRes, rRes] = await Promise.all([
+      fetch(`/api/questions?date=${date}`),
+      fetch(`/api/daily-readings?date=${date}`),
+    ]);
+    const qData = await qRes.json();
+    const rData = await rRes.json();
+    setDateQuestions(qData.data || []);
+    setDayReadings(rData.data || null);
     setLoading(false);
   };
 
@@ -176,6 +193,39 @@ export default function SchedulePage() {
                   </span>
                 )}
               </div>
+
+              {/* Readings Preview */}
+              {dayReadings && (
+                <div style={{ marginBottom: 16, borderRadius: 10, border: '1px solid rgba(99,102,241,0.2)', background: 'rgba(99,102,241,0.05)', padding: '14px 16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10, fontSize: 12, fontWeight: 700, color: 'var(--indigo)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    <BookOpen size={13} /> Today's Readings
+                  </div>
+                  {dayReadings.liturgical_day && (
+                    <div style={{ fontSize: 11.5, color: 'var(--text)', fontWeight: 600, marginBottom: 8 }}>✝️ {dayReadings.liturgical_day}</div>
+                  )}
+                  {dayReadings.first_reading_ref && (
+                    <div style={{ marginBottom: 8 }}>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, marginBottom: 2 }}>📖 FIRST READING — {dayReadings.first_reading_ref}</div>
+                      <div style={{ fontSize: 11.5, color: 'var(--text)', lineHeight: 1.5, fontStyle: 'italic' }}>{dayReadings.first_reading_text?.slice(0, 200)}{(dayReadings.first_reading_text?.length || 0) > 200 ? '…' : ''}</div>
+                    </div>
+                  )}
+                  {dayReadings.gospel_ref && (
+                    <div style={{ marginBottom: 8 }}>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, marginBottom: 2 }}>📖 GOSPEL — {dayReadings.gospel_ref}</div>
+                      <div style={{ fontSize: 11.5, color: 'var(--text)', lineHeight: 1.5, fontStyle: 'italic' }}>{dayReadings.gospel_text?.slice(0, 200)}{(dayReadings.gospel_text?.length || 0) > 200 ? '…' : ''}</div>
+                    </div>
+                  )}
+                  {dayReadings.reflection_en && (
+                    <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 8, marginTop: 4 }}>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, marginBottom: 4 }}>🙏 REFLECTION</div>
+                      <div style={{ fontSize: 11.5, color: 'var(--text)', lineHeight: 1.6 }}>{dayReadings.reflection_en}</div>
+                      {dayReadings.reflection_hi && (
+                        <div style={{ fontSize: 11.5, color: 'var(--text-muted)', lineHeight: 1.6, marginTop: 4, fontFamily: '"Noto Sans Devanagari", sans-serif' }}>{dayReadings.reflection_hi}</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Questions for day */}
               {loading ? (

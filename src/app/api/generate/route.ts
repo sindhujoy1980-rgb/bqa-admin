@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateDailyQuestions, saveQuestions } from '@/lib/gemini';
+import { generateDailyContent, saveQuestions, saveReadings } from '@/lib/gemini';
 import { getSessionAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 
@@ -38,17 +38,32 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const questions = await generateDailyQuestions(apiKey);
+    // Generate questions + readings + reflection in one Gemini call
+    const { questions, readings } = await generateDailyContent(apiKey);
+
+    // Save quiz questions
     await saveQuestions(questions, quizDate);
+
+    // Save daily readings + reflection
+    await saveReadings(readings, quizDate);
 
     await supabaseAdmin.from('audit_logs').insert({
       admin_id: admin.id,
       action: 'QUESTIONS_GENERATED',
       entity: 'question',
-      meta: { quiz_date: quizDate, count: questions.length },
+      meta: { quiz_date: quizDate, count: questions.length, has_readings: !!readings.gospel_ref },
     });
 
-    return NextResponse.json({ success: true, quiz_date: quizDate, count: questions.length });
+    return NextResponse.json({
+      success: true,
+      quiz_date: quizDate,
+      count: questions.length,
+      readings: {
+        liturgical_day: readings.liturgical_day,
+        first_reading_ref: readings.first_reading_ref,
+        gospel_ref: readings.gospel_ref,
+      },
+    });
   } catch (err: any) {
     console.error('[generate] Error:', err);
     return NextResponse.json({ error: err.message || 'Generation failed' }, { status: 500 });
