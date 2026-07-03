@@ -1,8 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { supabaseAdmin } from './supabase';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-
 export interface GeneratedQuestion {
   slot: 1 | 2 | 3;
   category: 'OT' | 'NT-Gospel' | 'NT-Other';
@@ -65,8 +63,11 @@ function validate(questions: GeneratedQuestion[]): { valid: boolean; errors: str
   return { valid: errors.length === 0, errors };
 }
 
-export async function generateDailyQuestions(): Promise<GeneratedQuestion[]> {
-  const model = genAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || 'gemini-1.5-flash' });
+export async function generateDailyQuestions(apiKey?: string): Promise<GeneratedQuestion[]> {
+  const key = apiKey || process.env.GEMINI_API_KEY || '';
+  if (!key) throw new Error('[Gemini] No API key available. Please set it in Settings.');
+  const genAI = new GoogleGenerativeAI(key);
+  const model = genAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || 'gemini-2.5-flash' });
   const recentTopics = await getRecentTopics(90);
   const prompt = buildPrompt(recentTopics);
   const MAX_RETRIES = parseInt(process.env.GEMINI_MAX_RETRIES || '3');

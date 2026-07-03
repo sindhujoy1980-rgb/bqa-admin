@@ -22,15 +22,35 @@ export async function POST(req: NextRequest) {
     }, { status: 409 });
   }
 
-  const questions = await generateDailyQuestions();
-  await saveQuestions(questions, quizDate);
+  // Fetch Gemini API key: DB-stored key takes priority over env var
+  const { data: keySetting } = await supabaseAdmin
+    .from('app_settings')
+    .select('value')
+    .eq('key', 'gemini_key')
+    .single();
 
-  await supabaseAdmin.from('audit_logs').insert({
-    admin_id: admin.id,
-    action: 'QUESTIONS_GENERATED',
-    entity: 'question',
-    meta: { quiz_date: quizDate, count: 3 },
-  });
+  const apiKey = (keySetting?.value as string | null) || process.env.GEMINI_API_KEY || '';
 
-  return NextResponse.json({ success: true, quiz_date: quizDate, count: questions.length });
+  if (!apiKey) {
+    return NextResponse.json({
+      error: 'Gemini API key not configured. Please add it in Settings.',
+    }, { status: 400 });
+  }
+
+  try {
+    const questions = await generateDailyQuestions(apiKey);
+    await saveQuestions(questions, quizDate);
+
+    await supabaseAdmin.from('audit_logs').insert({
+      admin_id: admin.id,
+      action: 'QUESTIONS_GENERATED',
+      entity: 'question',
+      meta: { quiz_date: quizDate, count: questions.length },
+    });
+
+    return NextResponse.json({ success: true, quiz_date: quizDate, count: questions.length });
+  } catch (err: any) {
+    console.error('[generate] Error:', err);
+    return NextResponse.json({ error: err.message || 'Generation failed' }, { status: 500 });
+  }
 }
