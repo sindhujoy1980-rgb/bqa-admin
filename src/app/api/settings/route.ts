@@ -4,7 +4,7 @@ import { getSessionAdmin } from '@/lib/auth';
 
 // GET — return current settings (masked key)
 export async function GET(req: NextRequest) {
-  const admin = await getSessionAdmin(req);
+  const admin = await getSessionAdmin();
   if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { data } = await supabaseAdmin
@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
 
 // POST — save setting
 export async function POST(req: NextRequest) {
-  const admin = await getSessionAdmin(req);
+  const admin = await getSessionAdmin();
   if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await req.json();

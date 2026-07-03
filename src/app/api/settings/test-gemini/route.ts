@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSessionAdmin } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
-  const admin = await getSessionAdmin(req);
+  const admin = await getSessionAdmin();
   if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { key } = await req.json();

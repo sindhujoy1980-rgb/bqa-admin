@@ -10,7 +10,7 @@ const supabaseAuth = createClient(
 );
 
 export async function POST(req: NextRequest) {
-  const admin = await getSessionAdmin(req);
+  const admin = await getSessionAdmin();
   if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { currentPassword, newPassword } = await req.json();
