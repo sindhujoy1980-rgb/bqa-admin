@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     const parts = line.trim().split(',');
     if (parts.length < 2) { skipped++; continue; }
 
-    const [name, rawPhone, lang] = parts.map(p => p.trim().replace(/^"|"$/g, ''));
+    const [name, rawPhone, lang] = parts.map((p: string) => p.trim().replace(/^"|"$/g, ''));
     if (!name || !rawPhone) { skipped++; continue; }
 
     const phone = rawPhone.replace(/\D/g, '');
