@@ -139,9 +139,18 @@ export async function generateDailyQuestions(apiKey?: string): Promise<Generated
       return questions;
 
     } catch (err: any) {
-      console.error(`[Gemini] Attempt ${attempt} error:`, err.message);
-      lastRawResponse = err.message || '';
-      await new Promise(r => setTimeout(r, 2000 * attempt));
+      const msg: string = err.message || '';
+      console.error(`[Gemini] Attempt ${attempt} error:`, msg.slice(0, 200));
+      lastRawResponse = msg;
+
+      // Parse retry-after seconds from the 429 error message
+      const retryMatch = msg.match(/retry in ([\d.]+)s/i);
+      const waitMs = retryMatch
+        ? Math.ceil(parseFloat(retryMatch[1])) * 1000 + 2000  // add 2s buffer
+        : 5000 * attempt; // fallback: 5s, 10s, 15s
+
+      console.log(`[Gemini] Waiting ${Math.round(waitMs / 1000)}s before retry...`);
+      await new Promise(r => setTimeout(r, waitMs));
     }
   }
 
