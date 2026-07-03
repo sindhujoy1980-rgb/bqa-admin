@@ -18,8 +18,8 @@ export async function PATCH(req: NextRequest) {
 
   if (dbErr) return NextResponse.json({ error: dbErr.message }, { status: 500 });
 
-  // Update Supabase Auth email if changed
-  if (email !== admin.email) {
+  // Update Supabase Auth email if changed and supabase_uid is available
+  if (email !== admin.email && admin.supabase_uid) {
     const { error: authErr } = await supabaseAdmin.auth.admin.updateUserById(
       admin.supabase_uid,
       { email: email.trim() }
