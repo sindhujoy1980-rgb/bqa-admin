@@ -7,16 +7,16 @@ export async function POST(_: NextRequest, { params }: { params: Promise<{ date:
   if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const { date } = await params;
 
-  // Check all 3 questions are approved
+  // Check at least 1 question is approved
   const { data: questions } = await supabaseAdmin
     .from('questions')
     .select('id, status, slot')
     .eq('quiz_date', date)
     .eq('status', 'approved');
 
-  if (!questions || questions.length < 3) {
+  if (!questions || questions.length < 1) {
     return NextResponse.json({
-      error: `Need 3 approved questions for ${date}. Currently have ${questions?.length ?? 0}.`,
+      error: `Need at least 1 approved question for ${date}. Currently have ${questions?.length ?? 0}.`,
     }, { status: 400 });
   }
 
