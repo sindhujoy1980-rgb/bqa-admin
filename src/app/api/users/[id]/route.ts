@@ -3,7 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { getSessionAdmin } from '@/lib/auth';
 
 export async function PATCH(req: NextRequest, context: { params: Promise<{ id: string }> }) {
-  const admin = await getSessionAdmin(req);
+  const admin = await getSessionAdmin();
   if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { id } = await context.params;
@@ -14,7 +14,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
 }
 
 export async function DELETE(req: NextRequest, context: { params: Promise<{ id: string }> }) {
-  const admin = await getSessionAdmin(req);
+  const admin = await getSessionAdmin();
   if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { id } = await context.params;
