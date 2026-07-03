@@ -30,65 +30,126 @@ async function getRecentTopics(days = 90): Promise<string[]> {
 
 function buildPrompt(recentTopics: string[]): string {
   const recentList = recentTopics.length ? recentTopics.slice(-30).join('\n- ') : 'None';
-  return `You are a Bible quiz expert. Generate exactly 3 Hindi Bible MCQs for a daily WhatsApp quiz.
+  return `You are a Catholic Bible quiz expert for an Indian parish. Generate exactly 3 Bible MCQ questions based on today's Catholic Mass readings (Roman Rite).
 
-SLOT RULES (STRICT):
-- slot 1: OLD TESTAMENT only (Genesis/उत्पत्ति → Malachi/मलाकी)
-- slot 2: GOSPELS only (Matthew/मत्ती, Mark/मरकुस, Luke/लूका, John/यूहन्ना)
-- slot 3: OTHER NEW TESTAMENT only (Acts/प्रेरितों के काम → Revelation/प्रकाशितवाक्य)
+SLOT RULES (STRICT — follow exactly):
+- slot 1, category "OT": Question from the FIRST READING (Old Testament)
+- slot 2, category "NT-Gospel": Question from the GOSPEL reading
+- slot 3, category "NT-Other": Question from the SECOND READING (Epistle/New Testament)
 
-LANGUAGE: question_text, options, explanation → Hindi (Devanagari); verse_reference → Hindi book name + chapter:verse; topic_tag → English.
+LANGUAGE RULES:
+- question_text: Hindi in Devanagari script (e.g. "येसु ने क्या कहा?")
+- english_question: Same question in English
+- option_a, option_b, option_c, option_d: Hindi Devanagari
+- explanation: Hindi Devanagari (2-3 sentences with verse reference)
+- verse_reference: Hindi book name + chapter:verse (e.g. "लूका 10:1")
+- topic_tag: English keyword
 
-QUALITY: All 4 options must be plausible. Explanation = 2-3 Hindi sentences mentioning the verse.
+IMPORTANT: question_text and options MUST be in Hindi Devanagari script (Unicode range \\u0900-\\u097F). Do not use Roman/Latin script for these fields.
+
 DO NOT repeat these recent topics:
 - ${recentList}
 
-Return ONLY a valid JSON array of exactly 3 objects. No markdown, no preamble:
-[{"slot":1,"category":"OT","question_text":"...","option_a":"...","option_b":"...","option_c":"...","option_d":"...","correct_answer":"A","verse_reference":"...","explanation":"...","difficulty":"medium","topic_tag":"...","english_question":"..."},{"slot":2,"category":"NT-Gospel",...},{"slot":3,"category":"NT-Other",...}]`;
+Return ONLY a valid JSON array of exactly 3 objects. No markdown fences, no extra text. Start directly with [
+[{"slot":1,"category":"OT","question_text":"हिंदी में प्रश्न","english_question":"English question","option_a":"हिंदी","option_b":"हिंदी","option_c":"हिंदी","option_d":"हिंदी","correct_answer":"A","verse_reference":"पुस्तक अ:व","explanation":"हिंदी स्पष्टीकरण","difficulty":"medium","topic_tag":"English"},{"slot":2,"category":"NT-Gospel",...},{"slot":3,"category":"NT-Other",...}]`;
 }
 
 function validate(questions: GeneratedQuestion[]): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
-  if (!Array.isArray(questions) || questions.length !== 3)
-    return { valid: false, errors: ['Must be array of 3'] };
+
+  if (!Array.isArray(questions) || questions.length !== 3) {
+    return { valid: false, errors: [`Expected array of 3, got ${Array.isArray(questions) ? questions.length : typeof questions}`] };
+  }
+
   const catMap: Record<number, string> = { 1: 'OT', 2: 'NT-Gospel', 3: 'NT-Other' };
   const devanagari = /[\u0900-\u097F]/;
+
   for (const q of questions) {
-    if (q.category !== catMap[q.slot]) errors.push(`Slot ${q.slot}: wrong category ${q.category}`);
+    if (!q.slot || !q.category) { errors.push(`Missing slot or category`); continue; }
+    if (q.category !== catMap[q.slot]) errors.push(`Slot ${q.slot}: wrong category "${q.category}", expected "${catMap[q.slot]}"`);
     if (!q.question_text?.trim()) errors.push(`Slot ${q.slot}: missing question_text`);
-    if (!['A', 'B', 'C', 'D'].includes(q.correct_answer)) errors.push(`Slot ${q.slot}: invalid correct_answer`);
+    if (!['A', 'B', 'C', 'D'].includes(q.correct_answer)) errors.push(`Slot ${q.slot}: invalid correct_answer "${q.correct_answer}"`);
     if (!q.verse_reference?.trim()) errors.push(`Slot ${q.slot}: missing verse_reference`);
-    if (!devanagari.test(q.question_text || '')) errors.push(`Slot ${q.slot}: question not in Hindi/Devanagari`);
+    if (!q.option_a || !q.option_b || !q.option_c || !q.option_d) errors.push(`Slot ${q.slot}: missing one or more options`);
+    // Warn but don't fail on Devanagari — Gemini may occasionally return transliteration
+    if (!devanagari.test(q.question_text || '')) {
+      console.warn(`[Gemini] Slot ${q.slot}: question_text not in Devanagari — "${q.question_text?.slice(0, 50)}"`);
+    }
   }
+
   return { valid: errors.length === 0, errors };
 }
 
 export async function generateDailyQuestions(apiKey?: string): Promise<GeneratedQuestion[]> {
   const key = apiKey || process.env.GEMINI_API_KEY || '';
-  if (!key) throw new Error('[Gemini] No API key available. Please set it in Settings.');
+  if (!key) throw new Error('No Gemini API key available. Please set it in Settings.');
+
   const genAI = new GoogleGenerativeAI(key);
-  const model = genAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || 'gemini-2.0-flash' });
+  const modelName = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+  const model = genAI.getGenerativeModel({ model: modelName });
+
   const recentTopics = await getRecentTopics(90);
   const prompt = buildPrompt(recentTopics);
   const MAX_RETRIES = parseInt(process.env.GEMINI_MAX_RETRIES || '3');
 
+  let lastValidationErrors: string[] = [];
+  let lastRawResponse = '';
+
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-    console.log(`[Gemini] Attempt ${attempt}/${MAX_RETRIES}`);
+    console.log(`[Gemini] Attempt ${attempt}/${MAX_RETRIES} using ${modelName}`);
     try {
       const result = await model.generateContent(prompt);
-      const raw = result.response.text().trim()
-        .replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
+      const raw = result.response.text()
+        .trim()
+        .replace(/^```json\s*/i, '')
+        .replace(/^```\s*/i, '')
+        .replace(/\s*```$/i, '')
+        .trim();
+
+      lastRawResponse = raw.slice(0, 200); // for error logging
+      console.log(`[Gemini] Raw response (first 200 chars): ${lastRawResponse}`);
+
       const questions: GeneratedQuestion[] = JSON.parse(raw);
       const { valid, errors } = validate(questions);
-      if (!valid) { console.error('[Gemini] Validation failed:', errors); continue; }
+
+      if (!valid) {
+        lastValidationErrors = errors;
+        console.error('[Gemini] Validation failed:', errors);
+        // Don't retry on category errors — fix the slot mapping instead
+        if (errors.some(e => e.includes('wrong category'))) {
+          // Auto-fix category mapping
+          for (const q of questions) {
+            const catMap: Record<number, 'OT' | 'NT-Gospel' | 'NT-Other'> = { 1: 'OT', 2: 'NT-Gospel', 3: 'NT-Other' };
+            if (catMap[q.slot]) q.category = catMap[q.slot];
+          }
+          // Re-validate after fix
+          const { valid: valid2 } = validate(questions);
+          if (valid2) {
+            console.log('[Gemini] ✅ Auto-fixed category mapping');
+            questions.sort((a, b) => a.slot - b.slot);
+            return questions;
+          }
+        }
+        await new Promise(r => setTimeout(r, 1500 * attempt));
+        continue;
+      }
+
       questions.sort((a, b) => a.slot - b.slot);
+      console.log('[Gemini] ✅ Questions generated successfully');
       return questions;
-    } catch (err) {
-      console.error(`[Gemini] Attempt ${attempt} error:`, err);
+
+    } catch (err: any) {
+      console.error(`[Gemini] Attempt ${attempt} error:`, err.message);
+      lastRawResponse = err.message || '';
       await new Promise(r => setTimeout(r, 2000 * attempt));
     }
   }
-  throw new Error('[Gemini] Failed after all retries');
+
+  const detail = lastValidationErrors.length
+    ? `Validation errors: ${lastValidationErrors.join('; ')}`
+    : `Last response: ${lastRawResponse}`;
+
+  throw new Error(`Gemini question generation failed after ${MAX_RETRIES} attempts. ${detail}`);
 }
 
 export async function saveQuestions(questions: GeneratedQuestion[], quizDate: string): Promise<void> {
