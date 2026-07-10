@@ -274,7 +274,7 @@ export default function SchedulePage() {
 
               {/* Actions */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <button onClick={handleGenerate} disabled={generating} className="btn-ghost" style={{ justifyContent: 'center', fontSize: 13 }}>
+                <button onClick={() => handleGenerate()} disabled={generating} className="btn-ghost" style={{ justifyContent: 'center', fontSize: 13 }}>
                   {generating ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Sparkles size={13} />}
                   Generate Questions
                 </button>
