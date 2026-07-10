@@ -42,6 +42,7 @@ export default function SchedulePage() {
   const [loading, setLoading]           = useState(false);
   const [publishing, setPublishing]     = useState(false);
   const [generating, setGenerating]     = useState(false);
+  const [sending, setSending]           = useState(false);
   const [dayReadings, setDayReadings]   = useState<DailyReading | null>(null);
 
   const monthStr = format(currentMonth, 'yyyy-MM');
@@ -109,6 +110,24 @@ export default function SchedulePage() {
       toast.error(data.error || 'Failed', { id: t });
     }
     setGenerating(false);
+  };
+
+  const handleSendQuiz = async () => {
+    if (!selectedDate) return;
+    setSending(true);
+    const t = toast.loading('Sending quiz via WhatsApp…');
+    try {
+      const res  = await fetch('/api/send-quiz', { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(`✅ Sent to ${data.sent} user(s)! Failed: ${data.failed}`, { id: t, duration: 5000 });
+      } else {
+        toast.error(data.error || 'Send failed', { id: t });
+      }
+    } catch (err: any) {
+      toast.error(err.message, { id: t });
+    }
+    setSending(false);
   };
 
   const monthStart = startOfMonth(currentMonth);
@@ -295,6 +314,12 @@ export default function SchedulePage() {
                     )}
                   </div>
                 )}
+                {/* Send Again — always available for testing / manual resend */}
+                <button onClick={handleSendQuiz} disabled={sending} className="btn-ghost"
+                  style={{ justifyContent: 'center', fontSize: 13, borderColor: 'rgba(99,102,241,0.3)' }}>
+                  {sending ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Send size={13} />}
+                  Send WhatsApp Now
+                </button>
                 {(selectedQuiz?.question_stats?.approved ?? 0) < 1 && !selectedQuiz?.published && (
                   <p style={{ fontSize: 11.5, color: 'var(--amber)', textAlign: 'center' }}>
                     Need at least 1 approved question to publish
