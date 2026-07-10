@@ -84,17 +84,30 @@ export default function SchedulePage() {
     setPublishing(false);
   };
 
-  const handleGenerate = async () => {
+  const handleGenerate = async (force = false) => {
     if (!selectedDate) return;
     setGenerating(true);
-    const t = toast.loading('Generating questions…');
+    const t = toast.loading(force ? 'Force regenerating…' : 'Generating questions…');
     const res  = await fetch('/api/generate', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ date: selectedDate }),
+      body: JSON.stringify({ date: selectedDate, force }),
     });
     const data = await res.json();
-    if (res.ok) { toast.success('Questions generated!', { id: t }); fetchDayQuestions(selectedDate); }
-    else        { toast.error(data.error || 'Failed', { id: t }); }
+    if (res.ok) {
+      toast.success('Questions & readings generated!', { id: t });
+      fetchDayQuestions(selectedDate);
+    } else if (res.status === 409 && !force) {
+      toast.dismiss(t);
+      // Questions already exist — offer force regenerate
+      if (confirm('Questions already exist for this date. Force regenerate (overwrites existing)?')) {
+        setGenerating(false);
+        handleGenerate(true);
+        return;
+      }
+      toast.error('Cancelled', { id: t });
+    } else {
+      toast.error(data.error || 'Failed', { id: t });
+    }
     setGenerating(false);
   };
 
