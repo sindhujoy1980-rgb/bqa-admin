@@ -7,7 +7,7 @@ import { Suspense } from 'react';
 
 import { useEffect, useState, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { CheckSquare, XSquare, Pencil, Sparkles, Filter, Loader2, BookOpen, RefreshCw } from 'lucide-react';
+import { CheckSquare, XSquare, Pencil, Sparkles, Filter, Loader2, BookOpen, RefreshCw, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import type { BqaQuestion } from '@/lib/supabase';
@@ -24,17 +24,25 @@ const CATEGORY_BADGE: Record<string, string> = {
   OT: 'badge-first', 'NT-Gospel': 'badge-gospel', 'NT-Other': 'badge-second',
 };
 
-function QuestionCard({ q, onApprove, onReject, onEdit }: {
+function QuestionCard({ q, onApprove, onReject, onEdit, onDelete }: {
   q: BqaQuestion;
   onApprove: (id: string) => void;
   onReject:  (id: string) => void;
   onEdit:    (id: string) => void;
+  onDelete:  (id: string) => void;
 }) {
-  const [busy, setBusy] = useState<'approve' | 'reject' | null>(null);
+  const [busy, setBusy] = useState<'approve' | 'reject' | 'delete' | null>(null);
 
   const handle = async (action: 'approve' | 'reject') => {
     setBusy(action);
     await (action === 'approve' ? onApprove(q.id) : onReject(q.id));
+    setBusy(null);
+  };
+
+  const handleDel = async () => {
+    if (!confirm('Delete this question permanently?')) return;
+    setBusy('delete');
+    await onDelete(q.id);
     setBusy(null);
   };
 
@@ -134,12 +142,24 @@ function QuestionCard({ q, onApprove, onReject, onEdit }: {
           <button className="btn-ghost" onClick={() => onEdit(q.id)} style={{ fontSize: 12.5 }}>
             <Pencil size={13} /> Edit
           </button>
+          <button className="btn-ghost" onClick={handleDel} disabled={!!busy}
+            style={{ fontSize: 12.5, marginLeft: 'auto', color: '#ef4444', borderColor: 'rgba(239,68,68,0.3)' }}>
+            {busy === 'delete' ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Trash2 size={13} />}
+            Delete
+          </button>
         </div>
       )}
       {q.status !== 'pending' && (
-        <button className="btn-ghost" onClick={() => onEdit(q.id)} style={{ fontSize: 12.5 }}>
-          <Pencil size={13} /> Edit
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn-ghost" onClick={() => onEdit(q.id)} style={{ fontSize: 12.5 }}>
+            <Pencil size={13} /> Edit
+          </button>
+          <button className="btn-ghost" onClick={handleDel} disabled={!!busy}
+            style={{ fontSize: 12.5, marginLeft: 'auto', color: '#ef4444', borderColor: 'rgba(239,68,68,0.3)' }}>
+            {busy === 'delete' ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Trash2 size={13} />}
+            Delete
+          </button>
+        </div>
       )}
     </div>
   );
@@ -152,6 +172,7 @@ function QuestionsInner() {
   const [questions, setQuestions] = useState<BqaQuestion[]>([]);
   const [loading, setLoading]     = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [clearingAll, setClearingAll] = useState(false);
   const [tab, setTab]             = useState<'pending' | 'approved' | 'rejected'>('pending');
   const [dateFilter, setDateFilter] = useState(sp.get('date') || '');
   const [catFilter, setCatFilter]   = useState('');
@@ -195,6 +216,23 @@ function QuestionsInner() {
     setGenerating(false);
   };
 
+  const handleDelete = async (id: string) => {
+    const res = await fetch(`/api/questions/${id}`, { method: 'DELETE' });
+    if (res.ok) { toast.success('Question deleted'); fetchQuestions(); }
+    else { const d = await res.json(); toast.error(d.error || 'Failed to delete'); }
+  };
+
+  const handleClearAll = async () => {
+    const date = dateFilter || new Date().toISOString().split('T')[0];
+    if (!confirm(`Delete ALL questions for ${date}? This cannot be undone.`)) return;
+    setClearingAll(true);
+    const res = await fetch(`/api/questions?date=${date}`, { method: 'DELETE' });
+    const d   = await res.json();
+    if (res.ok) { toast.success(`Cleared ${d.deleted ?? 'all'} questions for ${date}`); fetchQuestions(); }
+    else { toast.error(d.error || 'Failed to clear'); }
+    setClearingAll(false);
+  };
+
   const tabs: Array<{ key: typeof tab; label: string }> = [
     { key: 'pending',  label: 'Pending Review' },
     { key: 'approved', label: 'Approved' },
@@ -212,6 +250,11 @@ function QuestionsInner() {
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button onClick={fetchQuestions} className="btn-ghost" style={{ fontSize: 13 }}>
             <RefreshCw size={13} /> Refresh
+          </button>
+          <button onClick={() => handleClearAll()} disabled={clearingAll} className="btn-ghost"
+            style={{ fontSize: 13, color: '#ef4444', borderColor: 'rgba(239,68,68,0.3)' }}>
+            {clearingAll ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Trash2 size={13} />}
+            Clear All{dateFilter ? ` (${dateFilter})` : " Today"}
           </button>
           <button onClick={handleGenerate} disabled={generating} className="btn-primary">
             {generating ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Sparkles size={14} />}
@@ -276,6 +319,7 @@ function QuestionsInner() {
               onApprove={handleApprove}
               onReject={handleReject}
               onEdit={id => router.push(`/questions/${id}`)}
+              onDelete={handleDelete}
             />
           ))}
         </div>

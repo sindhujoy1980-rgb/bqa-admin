@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight, Sparkles, CheckCircle2, Clock, Send, Loader2, BookOpen } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Sparkles, CheckCircle2, Clock, Send, Loader2, BookOpen, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, getDay, addMonths, subMonths } from 'date-fns';
 import type { BqaQuestion } from '@/lib/supabase';
@@ -43,6 +43,7 @@ export default function SchedulePage() {
   const [publishing, setPublishing]     = useState(false);
   const [generating, setGenerating]     = useState(false);
   const [sending, setSending]           = useState(false);
+  const [clearingAll, setClearingAll]   = useState(false);
   const [dayReadings, setDayReadings]   = useState<DailyReading | null>(null);
 
   const monthStr = format(currentMonth, 'yyyy-MM');
@@ -128,6 +129,24 @@ export default function SchedulePage() {
       toast.error(err.message, { id: t });
     }
     setSending(false);
+  };
+
+  const handleClearAll = async () => {
+    if (!selectedDate) return;
+    if (!confirm(`Delete ALL questions for ${selectedDate}? This cannot be undone.`)) return;
+    setClearingAll(true);
+    const res = await fetch(`/api/questions?date=${selectedDate}`, { method: 'DELETE' });
+    const d   = await res.json();
+    if (res.ok) {
+      toast.success(`Cleared ${d.deleted ?? 'all'} questions for ${selectedDate}`);
+      fetchDayQuestions(selectedDate);
+      const updated = await fetch(`/api/quizzes?month=${monthStr}`);
+      const ud = await updated.json();
+      setQuizzes(ud.data || []);
+    } else {
+      toast.error(d.error || 'Failed to clear');
+    }
+    setClearingAll(false);
   };
 
   const monthStart = startOfMonth(currentMonth);
@@ -319,6 +338,12 @@ export default function SchedulePage() {
                   style={{ justifyContent: 'center', fontSize: 13, borderColor: 'rgba(99,102,241,0.3)' }}>
                   {sending ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Send size={13} />}
                   Send WhatsApp Now
+                </button>
+                {/* Clear All Questions */}
+                <button onClick={handleClearAll} disabled={clearingAll} className="btn-ghost"
+                  style={{ justifyContent: 'center', fontSize: 13, color: '#ef4444', borderColor: 'rgba(239,68,68,0.3)' }}>
+                  {clearingAll ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Trash2 size={13} />}
+                  Clear All Questions
                 </button>
                 {(selectedQuiz?.question_stats?.approved ?? 0) < 1 && !selectedQuiz?.published && (
                   <p style={{ fontSize: 11.5, color: 'var(--amber)', textAlign: 'center' }}>

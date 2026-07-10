@@ -40,3 +40,20 @@ export async function POST(req: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ data }, { status: 201 });
 }
+
+// DELETE /api/questions?date=yyyy-mm-dd  — clears all questions for a date
+export async function DELETE(req: NextRequest) {
+  const admin = await getSessionAdmin();
+  if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const date = new URL(req.url).searchParams.get('date');
+  if (!date) return NextResponse.json({ error: 'date param required' }, { status: 400 });
+
+  const { error, count } = await supabaseAdmin
+    .from('questions')
+    .delete({ count: 'exact' })
+    .eq('quiz_date', date);
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ success: true, deleted: count });
+}
