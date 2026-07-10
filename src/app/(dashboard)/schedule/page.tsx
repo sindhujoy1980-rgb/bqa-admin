@@ -25,8 +25,7 @@ function getDayStatus(quiz: Quiz | undefined): 'published' | 'ready' | 'pending'
   if (!quiz) return 'empty';
   if (quiz.published) return 'published';
   const { approved, pending } = quiz.question_stats;
-  if (approved >= 1) return 'ready';
-  if (pending > 0 || approved > 0) return 'pending';
+  if (approved >= 1 || pending > 0) return 'ready';  // pending questions = ready to send
   return 'empty';
 }
 
@@ -316,7 +315,8 @@ export default function SchedulePage() {
                   Generate Questions
                 </button>
                 {!selectedQuiz?.published && (
-                  <button onClick={handlePublish} disabled={publishing || (selectedQuiz?.question_stats?.approved ?? 0) < 1}
+                  <button onClick={handlePublish}
+                    disabled={publishing || (selectedQuiz?.question_stats?.pending ?? 0) + (selectedQuiz?.question_stats?.approved ?? 0) < 1}
                     className="btn-primary" style={{ justifyContent: 'center' }}>
                     {publishing ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Send size={14} />}
                     Publish Quiz
@@ -344,9 +344,9 @@ export default function SchedulePage() {
                   {clearingAll ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Trash2 size={13} />}
                   Clear All Questions
                 </button>
-                {(selectedQuiz?.question_stats?.approved ?? 0) < 1 && !selectedQuiz?.published && (
+                {((selectedQuiz?.question_stats?.pending ?? 0) + (selectedQuiz?.question_stats?.approved ?? 0)) < 1 && !selectedQuiz?.published && (
                   <p style={{ fontSize: 11.5, color: 'var(--amber)', textAlign: 'center' }}>
-                    Need at least 1 approved question to publish
+                    Generate questions first to publish
                   </p>
                 )}
               </div>
