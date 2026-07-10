@@ -114,7 +114,6 @@ export default function SchedulePage() {
   };
 
   const handleSendQuiz = async () => {
-    if (!selectedDate) return;
     setSending(true);
     const t = toast.loading('Sending quiz via WhatsApp…');
     try {
