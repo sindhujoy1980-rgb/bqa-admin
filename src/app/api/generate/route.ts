@@ -16,11 +16,12 @@ export async function POST(req: NextRequest) {
     .select('id')
     .eq('quiz_date', quizDate);
 
-  if (existing && existing.length >= 3 && !body.force) {
+  if (existing && existing.length >= 1 && !body.force) {
     return NextResponse.json({
-      error: `Questions already exist for ${quizDate}. Send { force: true } to regenerate.`,
+      error: `A question already exists for ${quizDate}. Send { force: true } to regenerate.`,
     }, { status: 409 });
   }
+
 
   // Fetch Gemini API key: DB-stored key takes priority over env var
   const { data: keySetting } = await supabaseAdmin

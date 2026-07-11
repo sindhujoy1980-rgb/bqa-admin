@@ -2,8 +2,8 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { supabaseAdmin } from './supabase';
 
 export interface GeneratedQuestion {
-  slot: 1 | 2 | 3;
-  category: 'OT' | 'NT-Gospel' | 'NT-Other';
+  slot: 1;
+  category: 'Gospel';
   question_text: string;
   option_a: string;
   option_b: string;
@@ -20,11 +20,11 @@ export interface GeneratedQuestion {
 export interface DailyReadingsOutput {
   liturgical_day: string;
   first_reading_ref: string;
-  first_reading_text: string;  // key verses excerpt ≤120 words
+  first_reading_text: string;
   gospel_ref: string;
-  gospel_text: string;         // key verses excerpt ≤120 words
-  reflection_hi: string;       // 2-3 sentence Hindi reflection
-  reflection_en: string;       // 2-3 sentence English reflection
+  gospel_text: string;
+  reflection_hi: string;
+  reflection_en: string;
 }
 
 export interface GenerationResult {
@@ -45,69 +45,61 @@ async function getRecentTopics(days = 90): Promise<string[]> {
 
 function buildPrompt(recentTopics: string[]): string {
   const recentList = recentTopics.length ? recentTopics.slice(-30).join('\n- ') : 'None';
-  return `You are a Catholic Bible expert for an Indian parish. Based on today's Catholic Mass readings (Roman Rite), generate the following JSON object.
+  return `You are a Catholic Bible expert for an Indian parish. Based on today's Catholic Mass Gospel reading (Roman Rite), generate exactly ONE quiz question in the following JSON format.
 
-SLOT RULES (STRICT):
-- slot 1, category "OT": Question from the FIRST READING (Old Testament)
-- slot 2, category "NT-Gospel": Question from the GOSPEL reading
-- slot 3, category "NT-Other": Question from the SECOND READING (Epistle/New Testament)
-
-LANGUAGE RULES for questions:
+RULES:
+- The question MUST be from the GOSPEL reading of today's Catholic Mass
 - question_text: Hindi in Devanagari script
 - english_question: Same question in English
-- option_a/b/c/d: Hindi Devanagari
-- explanation: Hindi Devanagari (2-3 sentences with verse reference)
-- verse_reference: Hindi book name + chapter:verse (e.g. "लूका 10:1")
-- topic_tag: English keyword
+- option_a/b/c/d: Hindi Devanagari (short, clear options)
+- correct_answer: exactly one of "A", "B", "C", or "D"
+- explanation: Hindi Devanagari (2-3 sentences with verse reference explaining the correct answer)
+- verse_reference: Hindi book name + chapter:verse (e.g. "मत्ती 9:14" or "लूका 10:1")
+- topic_tag: English keyword for the topic
+- difficulty: one of "easy", "medium", or "hard"
 
-READINGS RULES:
-- first_reading_text: Key 2-3 verses from the First Reading (English, ≤120 words)
-- gospel_text: Key 3-4 verses from the Gospel (English, ≤120 words)
-- reflection_hi: 2-3 sentence spiritual reflection in Hindi Devanagari
-- reflection_en: Same reflection in English
-
-DO NOT repeat these recent topics:
+DO NOT repeat these recent topics (avoid repeating the same scripture passage):
 - ${recentList}
 
-Return ONLY a valid JSON object (no markdown fences) in this exact shape:
+Return ONLY a valid JSON object (no markdown fences, no extra text) in this EXACT shape:
 {
-  "questions": [
-    {"slot":1,"category":"OT","question_text":"हिंदी","english_question":"English","option_a":"हिंदी","option_b":"हिंदी","option_c":"हिंदी","option_d":"हिंदी","correct_answer":"A","verse_reference":"पुस्तक अ:व","explanation":"हिंदी","difficulty":"medium","topic_tag":"English"},
-    {"slot":2,"category":"NT-Gospel",...},
-    {"slot":3,"category":"NT-Other",...}
-  ],
+  "question": {
+    "slot": 1,
+    "category": "Gospel",
+    "question_text": "हिंदी में प्रश्न",
+    "english_question": "Question in English",
+    "option_a": "हिंदी",
+    "option_b": "हिंदी",
+    "option_c": "हिंदी",
+    "option_d": "हिंदी",
+    "correct_answer": "A",
+    "verse_reference": "पुस्तक अ:व",
+    "explanation": "हिंदी में व्याख्या (2-3 वाक्य)",
+    "difficulty": "medium",
+    "topic_tag": "English keyword"
+  },
   "readings": {
-    "liturgical_day": "Ordinary Time — Week 13, Friday",
-    "first_reading_ref": "Amos 9:11-15",
-    "first_reading_text": "Key verses from First Reading...",
-    "gospel_ref": "Matthew 9:14-17",
-    "gospel_text": "Key verses from Gospel...",
-    "reflection_hi": "आज के सुसमाचार में येसु...",
-    "reflection_en": "In today's Gospel, Jesus..."
+    "liturgical_day": "Ordinary Time — Week 14, Saturday",
+    "first_reading_ref": "Genesis 49:29-32",
+    "first_reading_text": "Key 2-3 verses from the First Reading (English, ≤100 words)",
+    "gospel_ref": "Matthew 10:24-33",
+    "gospel_text": "Key 3-4 verses from the Gospel (English, ≤120 words)",
+    "reflection_hi": "आज के सुसमाचार में येसु... (2-3 वाक्य)",
+    "reflection_en": "In today's Gospel, Jesus... (2-3 sentences)"
   }
 }`;
 }
 
-function validate(questions: GeneratedQuestion[]): { valid: boolean; errors: string[] } {
+function validate(q: GeneratedQuestion): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
-
-  if (!Array.isArray(questions) || questions.length !== 3) {
-    return { valid: false, errors: [`Expected array of 3, got ${Array.isArray(questions) ? questions.length : typeof questions}`] };
-  }
-
-  const catMap: Record<number, string> = { 1: 'OT', 2: 'NT-Gospel', 3: 'NT-Other' };
   const devanagari = /[\u0900-\u097F]/;
 
-  for (const q of questions) {
-    if (!q.slot || !q.category) { errors.push(`Missing slot or category`); continue; }
-    if (q.category !== catMap[q.slot]) errors.push(`Slot ${q.slot}: wrong category "${q.category}", expected "${catMap[q.slot]}"`);
-    if (!q.question_text?.trim()) errors.push(`Slot ${q.slot}: missing question_text`);
-    if (!['A', 'B', 'C', 'D'].includes(q.correct_answer)) errors.push(`Slot ${q.slot}: invalid correct_answer "${q.correct_answer}"`);
-    if (!q.verse_reference?.trim()) errors.push(`Slot ${q.slot}: missing verse_reference`);
-    if (!q.option_a || !q.option_b || !q.option_c || !q.option_d) errors.push(`Slot ${q.slot}: missing one or more options`);
-    if (!devanagari.test(q.question_text || '')) {
-      console.warn(`[Gemini] Slot ${q.slot}: question_text not in Devanagari — "${q.question_text?.slice(0, 50)}"`);
-    }
+  if (!q.question_text?.trim()) errors.push('Missing question_text');
+  if (!['A', 'B', 'C', 'D'].includes(q.correct_answer)) errors.push(`Invalid correct_answer: "${q.correct_answer}"`);
+  if (!q.verse_reference?.trim()) errors.push('Missing verse_reference');
+  if (!q.option_a || !q.option_b || !q.option_c || !q.option_d) errors.push('Missing one or more options');
+  if (!devanagari.test(q.question_text || '')) {
+    console.warn(`[Gemini] question_text not in Devanagari: "${q.question_text?.slice(0, 50)}"`);
   }
 
   return { valid: errors.length === 0, errors };
@@ -144,34 +136,25 @@ export async function generateDailyContent(apiKey?: string): Promise<GenerationR
 
       const parsed = JSON.parse(raw);
 
-      // Support both old array format and new object format
-      const questions: GeneratedQuestion[] = Array.isArray(parsed) ? parsed : parsed.questions;
-      const readings: DailyReadingsOutput | undefined = Array.isArray(parsed) ? undefined : parsed.readings;
+      // Support both { question: {...} } and flat array format
+      const q: GeneratedQuestion = parsed.question
+        ? { ...parsed.question, slot: 1, category: 'Gospel' }
+        : Array.isArray(parsed)
+          ? { ...parsed[0], slot: 1, category: 'Gospel' }
+          : { ...parsed, slot: 1, category: 'Gospel' };
 
-      const { valid, errors } = validate(questions);
+      const readings: DailyReadingsOutput = parsed.readings || buildFallbackReadings(q);
 
+      const { valid, errors } = validate(q);
       if (!valid) {
         lastValidationErrors = errors;
         console.error('[Gemini] Validation failed:', errors);
-        if (errors.some(e => e.includes('wrong category'))) {
-          for (const q of questions) {
-            const catMap: Record<number, 'OT' | 'NT-Gospel' | 'NT-Other'> = { 1: 'OT', 2: 'NT-Gospel', 3: 'NT-Other' };
-            if (catMap[q.slot]) q.category = catMap[q.slot];
-          }
-          const { valid: valid2 } = validate(questions);
-          if (valid2) {
-            console.log('[Gemini] ✅ Auto-fixed category mapping');
-            questions.sort((a, b) => a.slot - b.slot);
-            return { questions, readings: readings || buildFallbackReadings(questions) };
-          }
-        }
         await new Promise(r => setTimeout(r, 1500 * attempt));
         continue;
       }
 
-      questions.sort((a, b) => a.slot - b.slot);
-      console.log('[Gemini] ✅ Content generated successfully');
-      return { questions, readings: readings || buildFallbackReadings(questions) };
+      console.log('[Gemini] ✅ Gospel question generated successfully');
+      return { questions: [q], readings };
 
     } catch (err: any) {
       const msg: string = err.message || '';
@@ -190,7 +173,6 @@ export async function generateDailyContent(apiKey?: string): Promise<GenerationR
       const retryMatch = msg.match(/retry in ([\d.]+)s/i);
       const suggestedWait = retryMatch ? Math.ceil(parseFloat(retryMatch[1])) * 1000 : 5000 * attempt;
       const waitMs = Math.min(suggestedWait, 15000);
-
       console.log(`[Gemini] Waiting ${Math.round(waitMs / 1000)}s before retry...`);
       await new Promise(r => setTimeout(r, waitMs));
     }
@@ -203,18 +185,15 @@ export async function generateDailyContent(apiKey?: string): Promise<GenerationR
   throw new Error(`Gemini generation failed after ${MAX_RETRIES} attempts. ${detail}`);
 }
 
-/** Fallback readings if Gemini doesn't return readings block */
-function buildFallbackReadings(questions: GeneratedQuestion[]): DailyReadingsOutput {
-  const gospel = questions.find(q => q.slot === 2);
-  const ot = questions.find(q => q.slot === 1);
+function buildFallbackReadings(q: GeneratedQuestion): DailyReadingsOutput {
   return {
     liturgical_day: '',
-    first_reading_ref: ot?.verse_reference || '',
+    first_reading_ref: '',
     first_reading_text: '',
-    gospel_ref: gospel?.verse_reference || '',
+    gospel_ref: q.verse_reference || '',
     gospel_text: '',
-    reflection_hi: gospel?.explanation || '',
-    reflection_en: gospel?.english_question || '',
+    reflection_hi: q.explanation || '',
+    reflection_en: q.english_question || '',
   };
 }
 
@@ -226,22 +205,22 @@ export async function generateDailyQuestions(apiKey?: string): Promise<Generated
 
 export async function saveQuestions(questions: GeneratedQuestion[], quizDate: string): Promise<void> {
   const payload = questions.map(q => ({
-    quiz_date: quizDate,
-    slot: q.slot,
-    category: q.category,
-    question_text: q.question_text,
-    option_a: q.option_a,
-    option_b: q.option_b,
-    option_c: q.option_c,
-    option_d: q.option_d,
+    quiz_date:      quizDate,
+    slot:           q.slot,
+    category:       q.category,
+    question_text:  q.question_text,
+    option_a:       q.option_a,
+    option_b:       q.option_b,
+    option_c:       q.option_c,
+    option_d:       q.option_d,
     correct_answer: q.correct_answer,
     verse_reference: q.verse_reference,
-    difficulty: q.difficulty,
-    explanation: q.explanation,
-    topic_tag: q.topic_tag || null,
+    difficulty:     q.difficulty,
+    explanation:    q.explanation,
+    topic_tag:      q.topic_tag || null,
     english_question: q.english_question || null,
-    status: 'pending',
-    generated_by: 'gemini',
+    status:         'pending',
+    generated_by:   'gemini',
   }));
 
   const { error } = await supabaseAdmin
@@ -259,14 +238,14 @@ export async function saveReadings(readings: DailyReadingsOutput, readingDate: s
   const { error } = await supabaseAdmin
     .from('daily_readings')
     .upsert({
-      reading_date: readingDate,
-      liturgical_day: readings.liturgical_day,
+      reading_date:      readingDate,
+      liturgical_day:    readings.liturgical_day,
       first_reading_ref: readings.first_reading_ref,
       first_reading_text: readings.first_reading_text,
-      gospel_ref: readings.gospel_ref,
-      gospel_text: readings.gospel_text,
-      reflection_hi: readings.reflection_hi,
-      reflection_en: readings.reflection_en,
+      gospel_ref:        readings.gospel_ref,
+      gospel_text:       readings.gospel_text,
+      reflection_hi:     readings.reflection_hi,
+      reflection_en:     readings.reflection_en,
     }, { onConflict: 'reading_date' });
 
   if (error) throw new Error(`[Supabase] Save readings failed: ${error.message}`);
