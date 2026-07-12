@@ -204,7 +204,7 @@ export default function AnalyticsPage() {
                   <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
                   <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} allowDecimals={false} />
                   <Tooltip contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 12 }}
-                    formatter={(v: any, n: string) => [v, n === 'total' ? 'Total' : 'Correct']} />
+                    formatter={(v: any, n: any) => [v, n === 'total' ? 'Total' : 'Correct']} />
                   <Area type="monotone" dataKey="total"   stroke={C.total}   fill="url(#gT)" strokeWidth={2} name="total"   />
                   <Area type="monotone" dataKey="correct" stroke={C.correct} fill="url(#gC)" strokeWidth={2} name="correct" />
                 </AreaChart>
