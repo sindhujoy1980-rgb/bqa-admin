@@ -34,11 +34,11 @@ export default function LeaderboardPage() {
 
   const total    = scores.length;
   const avgScore = total ? (scores.reduce((s, r) => s + r.score, 0) / total).toFixed(2) : '0';
-  const perfect  = scores.filter(s => s.score === 3).length;
+  const perfect  = scores.filter(s => s.score === 1).length;  // max score is 1
 
-  // Score distribution chart data
-  const distData = [0, 1, 2, 3].map(s => ({
-    name: `${s}/3`, count: scores.filter(r => r.score === s).length,
+  // Score distribution chart data (0 = incorrect, 1 = correct)
+  const distData = [0, 1].map(s => ({
+    name: s === 1 ? 'Correct' : 'Incorrect', count: scores.filter(r => r.score === s).length,
   }));
 
   // Church ranking data
