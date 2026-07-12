@@ -3,7 +3,7 @@ import { supabaseAdmin } from './supabase';
 
 export interface GeneratedQuestion {
   slot: 1;
-  category: 'Gospel';
+  category: 'NT-Gospel';
   question_text: string;
   option_a: string;
   option_b: string;
@@ -65,7 +65,7 @@ Return ONLY a valid JSON object (no markdown fences, no extra text) in this EXAC
 {
   "question": {
     "slot": 1,
-    "category": "Gospel",
+    "category": "NT-Gospel",
     "question_text": "हिंदी में प्रश्न",
     "english_question": "Question in English",
     "option_a": "हिंदी",
@@ -138,10 +138,10 @@ export async function generateDailyContent(apiKey?: string): Promise<GenerationR
 
       // Support both { question: {...} } and flat array format
       const q: GeneratedQuestion = parsed.question
-        ? { ...parsed.question, slot: 1, category: 'Gospel' }
+        ? { ...parsed.question, slot: 1, category: 'NT-Gospel' as const }
         : Array.isArray(parsed)
-          ? { ...parsed[0], slot: 1, category: 'Gospel' }
-          : { ...parsed, slot: 1, category: 'Gospel' };
+          ? { ...parsed[0], slot: 1, category: 'NT-Gospel' as const }
+          : { ...parsed, slot: 1, category: 'NT-Gospel' as const };
 
       const readings: DailyReadingsOutput = parsed.readings || buildFallbackReadings(q);
 

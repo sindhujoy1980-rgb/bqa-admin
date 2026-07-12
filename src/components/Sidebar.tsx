@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react';
 import {
   LayoutDashboard, CheckSquare, Calendar, Trophy, Users,
   PanelLeftClose, PanelLeftOpen, LogOut, ChevronUp, BookOpen,
-  Settings, UserCircle, Sun, Moon, UsersRound,
+  Settings, UserCircle, Sun, Moon, UsersRound, BarChart2,
 } from 'lucide-react';
 import { useTheme } from '@/app/(dashboard)/layout';
 
@@ -19,8 +19,12 @@ const NAV = [
     { name: 'Question Review', path: '/questions',     Icon: CheckSquare },
     { name: 'Quiz Schedule',   path: '/schedule',      Icon: Calendar },
   ]},
+  { section: 'Analytics', items: [
+    { name: 'Leaderboard',     path: '/leaderboard',   Icon: Trophy },
+    { name: 'Result Analytics',path: '/analytics',     Icon: BarChart2 },
+  ]},
   { section: 'Users', items: [
-    { name: 'Participants',    path: '/participants',  Icon: Trophy },
+    { name: 'Participants',    path: '/participants',  Icon: UsersRound },
     { name: 'User Management', path: '/users',         Icon: UsersRound },
   ]},
   { section: 'Account', items: [
