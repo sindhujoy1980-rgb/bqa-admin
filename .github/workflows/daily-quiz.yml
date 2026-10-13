@@ -1,0 +1,42 @@
+name: Daily Bible Quiz Automated Cron
+
+on:
+  schedule:
+    # 17:30 UTC = 11:00 PM IST (Generate Tomorrow's Question)
+    - cron: '30 17 * * *'
+    # 02:30 UTC = 08:00 AM IST (Broadcast Quiz to all active WhatsApp members)
+    - cron: '30 2 * * *'
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to trigger'
+        required: true
+        default: 'send-quiz'
+        type: choice
+        options:
+          - 'send-quiz'
+          - 'generate-questions'
+
+jobs:
+  run-cron:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine Endpoint
+        id: endpoint
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "action=${{ github.event.inputs.action }}" >> $GITHUB_OUTPUT
+          elif [ "$(date -u +%H)" -ge 12 ]; then
+            echo "action=generate-questions" >> $GITHUB_OUTPUT
+          else
+            echo "action=send-quiz" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Trigger Daily Quiz Service
+        run: |
+          ACTION="${{ steps.endpoint.outputs.action }}"
+          echo "🚀 Triggering endpoint: /api/cron/$ACTION"
+          curl -s -X POST "https://biblequiz-five.vercel.app/api/cron/$ACTION" \
+            -H "Content-Type: application/json" \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET || 'bqa-cron-secret-2026-cyfam' }}" \
+            --fail-with-body || exit 1

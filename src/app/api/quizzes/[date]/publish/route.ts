@@ -35,7 +35,7 @@ export async function POST(_: NextRequest, { params }: { params: Promise<{ date:
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   // Trigger WhatsApp broadcast via backend API
-  const backendUrl = process.env.NEXT_PUBLIC_API_URL;
+  const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'https://biblequiz-five.vercel.app';
   let broadcastResult: { sent?: number; failed?: number; error?: string } = {};
 
   if (backendUrl && process.env.CRON_SECRET) {
@@ -44,7 +44,12 @@ export async function POST(_: NextRequest, { params }: { params: Promise<{ date:
         method: 'POST',
         headers: { 'x-cron-secret': process.env.CRON_SECRET },
       });
-      broadcastResult = await res.json();
+      const raw = await res.text();
+      try {
+        broadcastResult = JSON.parse(raw);
+      } catch {
+        broadcastResult = { error: `Backend returned unexpected response (${res.status}): ${raw.slice(0, 100)}` };
+      }
       if (!res.ok) {
         console.error('[Publish] Broadcast failed:', broadcastResult);
       }
@@ -66,4 +71,3 @@ export async function POST(_: NextRequest, { params }: { params: Promise<{ date:
 
   return NextResponse.json({ data, broadcast: broadcastResult });
 }
-
