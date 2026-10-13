@@ -142,8 +142,17 @@ export default function SchedulePage() {
     setSending(true);
     const t = toast.loading('Sending quiz via WhatsApp…');
     try {
-      const res  = await fetch('/api/send-quiz', { method: 'POST' });
-      const data = await res.json();
+      const res = await fetch('/api/send-quiz', { method: 'POST' });
+      const raw = await res.text();
+      let data: any;
+      try {
+        data = JSON.parse(raw);
+      } catch {
+        toast.error(`Server error (${res.status}): ${raw.slice(0, 80)}`, { id: t });
+        setSending(false);
+        return;
+      }
+
       if (res.ok) {
         toast.success(`✅ Sent to ${data.sent} user(s)! Failed: ${data.failed}`, { id: t, duration: 5000 });
       } else {
