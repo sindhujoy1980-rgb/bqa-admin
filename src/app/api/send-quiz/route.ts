@@ -20,9 +20,18 @@ export async function POST(_req: NextRequest) {
       },
     });
 
-    const data = await res.json();
+    const rawText = await res.text();
+    let data: any;
+    try {
+      data = JSON.parse(rawText);
+    } catch {
+      return NextResponse.json({
+        error: `Backend returned unexpected response (${res.status} ${res.statusText}): ${rawText.slice(0, 150)}`
+      }, { status: res.status || 500 });
+    }
+
     return NextResponse.json(data, { status: res.status });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: err.message || 'Failed to connect to backend' }, { status: 500 });
   }
 }
